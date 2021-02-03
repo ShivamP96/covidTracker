@@ -2,7 +2,6 @@ import React, { useRef, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import L from 'leaflet';
 import { Marker, useMap } from 'react-leaflet';
-import axios from 'axios';
 
 import { promiseToFlyTo, getCurrentLocation } from 'lib/map';
 
@@ -43,17 +42,40 @@ const popupContentGatsby = `
  * @description This is an example of creating an effect used to zoom in and set a popup on load
  */
 
-async function MapEffect({ leafletElement: map } = {}) {
-  let response;
+const MapEffect = ({ markerRef }) => {
+  const map = useMap();
 
-  try{
-    response = await axios.get('https://corona.lmao.ninja/v2/countries')
-  }
-  catch(e){
-    console.log(`Failed to fetch countries: ${e.message}`, e);
-    return;
-  }
-  const {data = []} = response;
+  useEffect(() => {
+    if ( !markerRef.current || !map ) return;
+
+    ( async function run() {
+      const popup = L.popup({
+        maxWidth: 800,
+      });
+
+      const location = await getCurrentLocation().catch(() => LOCATION );
+
+      const { current: marker } = markerRef || {};
+
+      marker.setLatLng( location );
+      popup.setLatLng( location );
+      popup.setContent( popupContentHello );
+
+      setTimeout( async () => {
+        await promiseToFlyTo( map, {
+          zoom: ZOOM,
+          center: location,
+        });
+
+        marker.bindPopup( popup );
+
+        setTimeout(() => marker.openPopup(), timeToOpenPopupAfterZoom );
+        setTimeout(() => marker.setPopupContent( popupContentGatsby ), timeToUpdatePopupAfterZoom );
+      }, timeToZoom );
+    })();
+  }, [map, markerRef]);
+
+  return null;
 };
 
 const IndexPage = () => {
@@ -71,7 +93,10 @@ const IndexPage = () => {
         <title>Home Page</title>
       </Helmet>
 
-      <Map {...mapSettings}/>
+      <Map {...mapSettings}>
+        <MapEffect markerRef={markerRef} />
+        <Marker ref={markerRef} position={CENTER} />
+      </Map>
 
       <Container type="content" className="text-center home-start">
         <h2>Still Getting Started?</h2>
